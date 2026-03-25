@@ -19,6 +19,8 @@ Usage:
 ~/okular-session/okular-session.sh /path/to/file.pdf
 ```
 
+The repository also includes [okular-session.desktop](./okular-session.desktop), and the AUR package installs it to `/usr/share/applications/okular-session.desktop`.
+
 To make it your default launcher, point your desktop entry or shell alias to `~/okular-session/okular-session.sh` instead of `/usr/bin/okular`.
 
 Notes:

@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Okular Session
+GenericName=Document Viewer
+Comment=Launch Okular with PDF session restore
+Exec=okular-session %U
+TryExec=okular-session
+Icon=okular
+Terminal=false
+Categories=Office;Viewer;Qt;KDE;
+MimeType=application/pdf;
+StartupWMClass=okular
+Keywords=PDF;Document;Viewer;Session;
