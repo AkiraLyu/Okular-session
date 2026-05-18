@@ -74,14 +74,36 @@ restore_saved_session() {
     [[ ${#RESTORED_SESSION[@]} -gt 0 ]] || return 1
 }
 
+merge_restored_session_into_snapshot() {
+    local merged_snapshot=""
+
+    [[ ${#RESTORED_SESSION[@]} -gt 0 ]] || return
+
+    merged_snapshot="$(
+        {
+            printf '%s\n' "${RESTORED_SESSION[@]}"
+            if [[ -n "$LAST_SNAPSHOT" ]]; then
+                printf '%s\n' "$LAST_SNAPSHOT"
+            fi
+        } | awk 'NF && !seen[$0]++'
+    )"
+
+    LAST_SNAPSHOT="$merged_snapshot"
+}
+
 main() {
     local launch_args=("$@")
+    local has_launch_args=0
     local okular_status=0
 
-    if [[ ${#launch_args[@]} -eq 0 ]]; then
-        if restore_saved_session; then
-            launch_args=("${RESTORED_SESSION[@]}")
-        fi
+    if [[ ${#launch_args[@]} -gt 0 ]]; then
+        has_launch_args=1
+    fi
+
+    restore_saved_session || true
+
+    if [[ ${#launch_args[@]} -eq 0 && ${#RESTORED_SESSION[@]} -gt 0 ]]; then
+        launch_args=("${RESTORED_SESSION[@]}")
     fi
 
     "$OKULAR_BIN" "${launch_args[@]}" &
@@ -101,6 +123,9 @@ main() {
     fi
 
     refresh_snapshot
+    if [[ "$has_launch_args" -eq 1 ]]; then
+        merge_restored_session_into_snapshot
+    fi
     persist_snapshot
 
     return "$okular_status"

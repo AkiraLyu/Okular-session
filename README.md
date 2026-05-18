@@ -8,9 +8,10 @@
 Behavior:
 
 - If you launch it without file arguments, it restores the last saved PDF list.
+- If you launch it with file arguments, it opens those files directly and preserves the previous saved PDF list when writing the next snapshot.
 - While Okular is running, it samples open PDF file descriptors using the requested `/proc/.../fd | grep '.pdf'` approach.
-- When Okular exits, it writes the latest observed PDF set to `${XDG_STATE_HOME:-$HOME/.local/state}/okular-session/last-pdfs.txt`.
-- If no PDFs are open at exit, it clears the saved session.
+- When Okular exits, it writes the latest observed PDF set to `${XDG_STATE_HOME:-$HOME/.local/state}/okular-session/last-pdfs.txt`; file-argument launches merge that set with the previous saved list so desktop right-click opens do not discard earlier records.
+- If no PDFs are open at exit after a no-argument session launch, it clears the saved session.
 
 Usage:
 
