@@ -2,18 +2,107 @@
 
 set -euo pipefail
 
+CONFIG_FILE="${OKULAR_SESSION_CONFIG_FILE:-${XDG_CONFIG_HOME:-$HOME/.config}/okular-session/config}"
+declare -A ENV_OVERRIDES=()
+
+capture_environment_overrides() {
+    local name=""
+
+    for name in \
+        OKULAR_BIN \
+        OKULAR_SESSION_FILE \
+        OKULAR_SESSION_POLL_INTERVAL \
+        OKULAR_SESSION_EXTENSIONS \
+        OKULAR_SESSION_EXTRA_EXTENSIONS \
+        OKULAR_SESSION_STATE_DIR \
+        XDG_STATE_HOME; do
+        if [[ -v "$name" ]]; then
+            ENV_OVERRIDES["$name"]="${!name}"
+        fi
+    done
+}
+
+restore_environment_overrides() {
+    local name=""
+
+    for name in "${!ENV_OVERRIDES[@]}"; do
+        printf -v "$name" '%s' "${ENV_OVERRIDES[$name]}"
+    done
+}
+
+load_local_config() {
+    [[ -f "$CONFIG_FILE" ]] || return 0
+
+    # shellcheck source=/dev/null
+    source "$CONFIG_FILE"
+}
+
+capture_environment_overrides
+load_local_config
+restore_environment_overrides
+
 OKULAR_BIN="${OKULAR_BIN:-/usr/bin/okular}"
-STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/okular-session"
+STATE_DIR="${OKULAR_SESSION_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/okular-session}"
 SESSION_FILE="${OKULAR_SESSION_FILE:-$STATE_DIR/last-pdfs.txt}"
 POLL_INTERVAL="${OKULAR_SESSION_POLL_INTERVAL:-1}"
+DEFAULT_SUPPORTED_EXTENSIONS=(pdf epub md markdown txt)
+SUPPORTED_EXTENSIONS=()
 
 LAST_SNAPSHOT=""
 RESTORED_SESSION=()
 
-snapshot_pdf_paths() {
+add_supported_extensions() {
+    local extension_list="$1"
+    local extension=""
+
+    extension_list="${extension_list//,/ }"
+    extension_list="${extension_list//:/ }"
+    extension_list="${extension_list//;/ }"
+
+    for extension in $extension_list; do
+        extension="${extension#.}"
+        extension="${extension,,}"
+        [[ "$extension" =~ ^[a-z0-9][a-z0-9_+-]*$ ]] || continue
+        SUPPORTED_EXTENSIONS+=("$extension")
+    done
+}
+
+configure_supported_extensions() {
+    SUPPORTED_EXTENSIONS=()
+
+    if [[ -n "${OKULAR_SESSION_EXTENSIONS:-}" ]]; then
+        add_supported_extensions "$OKULAR_SESSION_EXTENSIONS"
+    else
+        add_supported_extensions "${DEFAULT_SUPPORTED_EXTENSIONS[*]}"
+        add_supported_extensions "${OKULAR_SESSION_EXTRA_EXTENSIONS:-}"
+    fi
+
+    if [[ ${#SUPPORTED_EXTENSIONS[@]} -eq 0 ]]; then
+        add_supported_extensions "${DEFAULT_SUPPORTED_EXTENSIONS[*]}"
+    fi
+}
+
+is_supported_document_path() {
+    local document_path="${1% (deleted)}"
+    local lower_path="${document_path,,}"
+    local extension=""
+
+    [[ -n "$document_path" ]] || return 1
+
+    for extension in "${SUPPORTED_EXTENSIONS[@]}"; do
+        if [[ "$lower_path" == *."$extension" ]]; then
+            return 0
+        fi
+    done
+
+    return 1
+}
+
+snapshot_document_paths() {
     local pid_from_ps=""
     local fd_dir=""
-    local raw_listing=""
+    local fd_path=""
+    local fd_target=""
 
     # Keep the user-requested /proc probe as the primary capture path.
     pid_from_ps="$(ps -C okular -o pid= | sed -e 's/[[:space:]]//g' || true)"
@@ -28,18 +117,21 @@ snapshot_pdf_paths() {
         return 1
     fi
 
-    raw_listing="$(ls -l "$fd_dir" 2>/dev/null | grep '.pdf' || true)"
+    for fd_path in "$fd_dir"/*; do
+        [[ -e "$fd_path" ]] || continue
+        fd_target="$(readlink "$fd_path" 2>/dev/null || true)"
+        fd_target="${fd_target% (deleted)}"
 
-    printf '%s\n' "$raw_listing" \
-        | sed -E 's/^.* -> //' \
-        | sed -E 's/ \(deleted\)$//' \
-        | awk 'NF && !seen[$0]++'
+        if is_supported_document_path "$fd_target"; then
+            printf '%s\n' "$fd_target"
+        fi
+    done | awk 'NF && !seen[$0]++'
 }
 
 refresh_snapshot() {
     local current_snapshot=""
 
-    if current_snapshot="$(snapshot_pdf_paths)"; then
+    if current_snapshot="$(snapshot_document_paths)"; then
         LAST_SNAPSHOT="$current_snapshot"
     fi
 }
@@ -60,15 +152,16 @@ persist_snapshot() {
 }
 
 restore_saved_session() {
-    local pdf_path=""
+    local document_path=""
 
     [[ -s "$SESSION_FILE" ]] || return 1
 
     RESTORED_SESSION=()
 
-    while IFS= read -r pdf_path; do
-        [[ -n "$pdf_path" && -f "$pdf_path" ]] || continue
-        RESTORED_SESSION+=("$pdf_path")
+    while IFS= read -r document_path; do
+        [[ -n "$document_path" && -f "$document_path" ]] || continue
+        is_supported_document_path "$document_path" || continue
+        RESTORED_SESSION+=("$document_path")
     done <"$SESSION_FILE"
 
     [[ ${#RESTORED_SESSION[@]} -gt 0 ]] || return 1
@@ -95,6 +188,8 @@ main() {
     local launch_args=("$@")
     local has_launch_args=0
     local okular_status=0
+
+    configure_supported_extensions
 
     if [[ ${#launch_args[@]} -gt 0 ]]; then
         has_launch_args=1
