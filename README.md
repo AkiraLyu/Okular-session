@@ -9,9 +9,9 @@ Behavior:
 
 - If you launch it without file arguments, it restores the last saved document list.
 - If you launch it with file arguments, it opens those files directly and preserves the previous saved document list when writing the next snapshot.
-- While Okular is running, it samples open file descriptors from `/proc/.../fd` and keeps paths whose extension is supported by the wrapper configuration.
-- When Okular exits, it writes the latest observed document set to `${XDG_STATE_HOME:-$HOME/.local/state}/okular-session/last-pdfs.txt`; file-argument launches merge that set with the previous saved list so desktop right-click opens do not discard earlier records.
-- If no supported documents are open at exit after a no-argument session launch, it clears the saved session.
+- Local file arguments seed the initial snapshot, so a clean first run does not depend on catching Okular's file descriptors at exactly the right time.
+- While Okular is running, it samples open file descriptors from every detected Okular process under `/proc/.../fd` and keeps paths whose extension is supported by the wrapper configuration.
+- When Okular exits, it writes the last non-empty observed document set to `${XDG_STATE_HOME:-$HOME/.local/state}/okular-session/last-pdfs.txt`; file-argument launches merge that set with the previous saved list so desktop right-click opens do not discard earlier records.
 
 Supported extensions default to `pdf`, `epub`, `md`, `markdown`, and `txt`. This only controls session tracking; Okular still needs the matching backend installed to open each format.
 
@@ -56,10 +56,6 @@ To make it your default launcher, point your desktop entry or shell alias to `~/
 Notes:
 
 - The wrapper restores only existing files.
-- The primary snapshot path reads Okular file descriptors from:
-
-```bash
-/proc/$(ps -C okular -o pid= | sed -e 's/\s//g')/fd
-```
-
-- If multiple Okular processes make that PID expression ambiguous, the wrapper falls back to the PID it launched itself.
+- The desktop entry uses `%F` because session persistence supports local files. Direct command-line options are still passed through to Okular, but only existing local document paths seed the snapshot.
+- Snapshot capture scans each PID reported by `ps -C okular -o pid=` and the PID launched by the wrapper, then de-duplicates the resulting paths.
+- Empty or failed `/proc` probes do not replace a known-good snapshot during startup or shutdown.

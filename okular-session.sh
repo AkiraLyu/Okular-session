@@ -99,40 +99,68 @@ is_supported_document_path() {
 }
 
 snapshot_document_paths() {
-    local pid_from_ps=""
+    local pid=""
     local fd_dir=""
     local fd_path=""
     local fd_target=""
+    local found_fd_dir=0
+    local -a document_paths=()
 
-    # Keep the user-requested /proc probe as the primary capture path.
-    pid_from_ps="$(ps -C okular -o pid= | sed -e 's/[[:space:]]//g' || true)"
+    while IFS= read -r pid; do
+        [[ "$pid" =~ ^[0-9]+$ ]] || continue
 
-    if [[ -n "$pid_from_ps" && -d "/proc/$pid_from_ps/fd" ]]; then
-        fd_dir="/proc/$pid_from_ps/fd"
-    elif [[ -n "${okular_pid:-}" && -d "/proc/$okular_pid/fd" ]]; then
-        # Fall back to the wrapper-tracked PID if multiple Okular processes
-        # make the pid_from_ps value ambiguous.
-        fd_dir="/proc/$okular_pid/fd"
-    else
-        return 1
-    fi
+        fd_dir="/proc/$pid/fd"
+        [[ -d "$fd_dir" ]] || continue
+        found_fd_dir=1
 
-    for fd_path in "$fd_dir"/*; do
-        [[ -e "$fd_path" ]] || continue
-        fd_target="$(readlink "$fd_path" 2>/dev/null || true)"
-        fd_target="${fd_target% (deleted)}"
+        for fd_path in "$fd_dir"/*; do
+            [[ -L "$fd_path" ]] || continue
+            fd_target="$(readlink "$fd_path" 2>/dev/null || true)"
+            fd_target="${fd_target% (deleted)}"
 
-        if is_supported_document_path "$fd_target"; then
-            printf '%s\n' "$fd_target"
-        fi
-    done | awk 'NF && !seen[$0]++'
+            if is_supported_document_path "$fd_target"; then
+                document_paths+=("$fd_target")
+            fi
+        done
+    done < <(
+        {
+            ps -C okular -o pid= || true
+            if [[ -n "${okular_pid:-}" ]]; then
+                printf '%s\n' "$okular_pid"
+            fi
+        } | awk '$1 ~ /^[0-9]+$/ && !seen[$1]++ { print $1 }'
+    )
+
+    [[ "$found_fd_dir" -eq 1 ]] || return 1
+    [[ ${#document_paths[@]} -gt 0 ]] || return 0
+
+    printf '%s\n' "${document_paths[@]}" | awk 'NF && !seen[$0]++'
 }
 
 refresh_snapshot() {
     local current_snapshot=""
 
-    if current_snapshot="$(snapshot_document_paths)"; then
+    if current_snapshot="$(snapshot_document_paths)" && [[ -n "$current_snapshot" ]]; then
         LAST_SNAPSHOT="$current_snapshot"
+    fi
+}
+
+seed_snapshot_from_launch_args() {
+    local launch_arg=""
+    local document_path=""
+    local seeded_snapshot=""
+
+    seeded_snapshot="$(
+        for launch_arg in "$@"; do
+            [[ -f "$launch_arg" ]] || continue
+            document_path="$(readlink -f -- "$launch_arg" 2>/dev/null)" || continue
+            is_supported_document_path "$document_path" || continue
+            printf '%s\n' "$document_path"
+        done | awk 'NF && !seen[$0]++'
+    )"
+
+    if [[ -n "$seeded_snapshot" ]]; then
+        LAST_SNAPSHOT="$seeded_snapshot"
     fi
 }
 
@@ -170,7 +198,7 @@ restore_saved_session() {
 merge_restored_session_into_snapshot() {
     local merged_snapshot=""
 
-    [[ ${#RESTORED_SESSION[@]} -gt 0 ]] || return
+    [[ ${#RESTORED_SESSION[@]} -gt 0 ]] || return 0
 
     merged_snapshot="$(
         {
@@ -200,6 +228,8 @@ main() {
     if [[ ${#launch_args[@]} -eq 0 && ${#RESTORED_SESSION[@]} -gt 0 ]]; then
         launch_args=("${RESTORED_SESSION[@]}")
     fi
+
+    seed_snapshot_from_launch_args "${launch_args[@]}"
 
     "$OKULAR_BIN" "${launch_args[@]}" &
     okular_pid=$!
