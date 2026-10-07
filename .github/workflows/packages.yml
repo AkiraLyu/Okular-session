@@ -82,7 +82,10 @@ jobs:
             bash packaging/build.sh arch "$PACKAGE_VERSION"
       - name: Verify Debian package installation
         if: matrix.format == 'deb'
-        run: apt-get install --yes --no-install-recommends ./dist/*.deb
+        run: |
+          # The container image excludes documentation from package installation.
+          apt-get install --yes --no-install-recommends \
+            -o 'Dpkg::Options::=--path-include=/usr/share/doc/okular-session/*' ./dist/*.deb
       - name: Verify Arch package installation
         if: matrix.format == 'arch'
         run: |
