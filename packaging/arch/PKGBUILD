@@ -1,0 +1,17 @@
+pkgname=okular-session
+pkgver=${PACKAGE_VERSION:?Set PACKAGE_VERSION before running makepkg}
+pkgrel=1
+pkgdesc='Session wrapper for Okular that restores previously opened PDFs'
+arch=('any')
+url='https://github.com/AkiraLyu/Okular-session'
+license=('GPL-3.0-only')
+depends=('bash>=4' 'coreutils' 'gawk' 'procps-ng' 'okular')
+conflicts=('okular-session-git')
+options=('!strip' '!debug')
+source=('okular-session.sh' 'okular-session.desktop' 'README.md' 'LICENSE' 'stage.sh')
+sha256sums=('SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP')
+PKGEXT='.pkg.tar.zst'
+
+package() {
+    bash "$srcdir/stage.sh" "$srcdir" "$pkgdir" arch
+}

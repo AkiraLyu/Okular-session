@@ -1,61 +1,79 @@
+# Okular Session Wrapper
+
+`okular-session` saves local document paths from Okular and restores them when launched without arguments. It requires Linux, Bash 4 or later, and Okular.
+
 > [!WARNING]
 > This project was generated with AI assistance.
 
-# Okular Session Wrapper
+## Installation
 
-`okular-session.sh` adds a simple document session restore layer around the installed `/usr/bin/okular`.
-
-Behavior:
-
-- If you launch it without file arguments, it restores the last saved document list.
-- If you launch it with file arguments, it opens those files directly and preserves the previous saved document list when writing the next snapshot.
-- Local file arguments seed the initial snapshot, so a clean first run does not depend on catching Okular's file descriptors at exactly the right time.
-- While Okular is running, it samples open file descriptors from every detected Okular process under `/proc/.../fd` and keeps paths whose extension is supported by the wrapper configuration.
-- When Okular exits, it writes the last non-empty observed document set to `${XDG_STATE_HOME:-$HOME/.local/state}/okular-session/last-pdfs.txt`; file-argument launches merge that set with the previous saved list so desktop right-click opens do not discard earlier records.
-
-Supported extensions default to `pdf`, `epub`, `md`, `markdown`, and `txt`. This only controls session tracking; Okular still needs the matching backend installed to open each format.
-
-Configuration:
-
-- Persistent local configuration is loaded from `${XDG_CONFIG_HOME:-$HOME/.config}/okular-session/config` if that file already exists. The wrapper does not create this file automatically.
-- `OKULAR_SESSION_CONFIG_FILE` points to a different config file path.
-- Environment variables override values from the local config file.
-- Config files use shell-compatible variable assignments.
-- `OKULAR_SESSION_EXTRA_EXTENSIONS` appends more extensions to the default list.
-- `OKULAR_SESSION_EXTENSIONS` replaces the default list entirely.
-- `OKULAR_SESSION_STATE_DIR` changes the directory used for saved session state.
-- Extension lists may be separated by spaces, commas, colons, or semicolons, and leading dots are optional.
-
-Examples:
+Choose the package format explicitly. For Debian/Ubuntu:
 
 ```bash
-OKULAR_SESSION_EXTRA_EXTENSIONS="djvu cbz" okular-session
-OKULAR_SESSION_EXTENSIONS="pdf,epub,txt" okular-session
+curl -fsSL https://github.com/AkiraLyu/Okular-session/releases/latest/download/install.sh | bash -s -- --package deb --yes
 ```
 
-Example local config:
+For Arch Linux:
 
 ```bash
-# ~/.config/okular-session/config
+curl -fsSL https://github.com/AkiraLyu/Okular-session/releases/latest/download/install.sh | bash -s -- --package arch --yes
+```
+
+The installer downloads the latest release, verifies its SHA-256 checksum, and installs the package and dependencies. It requires `curl`, `awk`, coreutils, and the selected package format's package manager. Run as a regular user with `sudo` available, or as root.
+
+| Parameter | Purpose |
+| --- | --- |
+| `--package deb\|arch` | Select the package format. Required. |
+| `--version vX.Y.Z` | Install a specific release instead of the latest. |
+| `--yes` | Accept package manager confirmation prompts. Use with the piped commands above. |
+| `--help` | Show usage. |
+
+For example, to install a specific Debian package release:
+
+```bash
+curl -fsSL https://github.com/AkiraLyu/Okular-session/releases/latest/download/install.sh | bash -s -- --package deb --version v1.0.0 --yes
+```
+
+## Usage
+
+```bash
+okular-session                                      # Restore saved documents
+okular-session /path/to/file.pdf /path/to/file.epub   # Open specific documents
+```
+
+All arguments are passed to Okular. Restoration occurs only when no arguments are supplied. To use the wrapper for desktop file opening, select **Okular Session** as the default application for the relevant document types.
+
+## Configuration
+
+The wrapper sources `${XDG_CONFIG_HOME:-$HOME/.config}/okular-session/config` if it exists. Use Bash variable assignments. Environment variables override values in the file; `OKULAR_SESSION_CONFIG_FILE` selects a different file.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `OKULAR_BIN` | `/usr/bin/okular` | Okular executable. |
+| `OKULAR_SESSION_POLL_INTERVAL` | `1` | Scan interval in seconds. |
+| `OKULAR_SESSION_EXTENSIONS` | `pdf epub md markdown txt` | Replace the tracked extensions. |
+| `OKULAR_SESSION_EXTRA_EXTENSIONS` | Empty | Extend the defaults when no replacement list is set. |
+| `OKULAR_SESSION_STATE_DIR` | `${XDG_STATE_HOME:-$HOME/.local/state}/okular-session` | Session state directory. |
+| `OKULAR_SESSION_FILE` | `$OKULAR_SESSION_STATE_DIR/last-pdfs.txt` | Saved document list for all tracked formats. |
+
+Extension lists accept spaces, commas, colons, or semicolons. Leading dots are optional; matching is case-insensitive. Okular needs a backend for each format. If a custom session file is outside the state directory, create its parent directory first.
+
+Example configuration:
+
+```bash
 OKULAR_SESSION_EXTRA_EXTENSIONS="djvu cbz"
 OKULAR_SESSION_POLL_INTERVAL=2
 ```
 
-Usage:
+## Session Behavior
 
-```bash
-~/okular-session/okular-session.sh
-~/okular-session/okular-session.sh /path/to/file.pdf
-~/okular-session/okular-session.sh /path/to/file.epub
-```
+- Existing local document arguments seed the initial session list.
+- The wrapper scans file descriptors from the launched process and all processes named `okular`.
+- When the launched process exits, it saves the last non-empty list. Launches with arguments merge eligible documents from the previous session.
+- Restoration includes only existing local files with tracked extensions.
 
-The repository also includes [okular-session.desktop](./okular-session.desktop), and the AUR package installs it to `/usr/share/applications/okular-session.desktop`.
+Capture depends on visible file descriptors. Closed documents may remain in the saved list, and documents may be missed. Remote URLs, page positions, and window layout are not saved.
 
-To make it your default launcher, point your desktop entry or shell alias to `~/okular-session/okular-session.sh` instead of `/usr/bin/okular`.
+## License
 
-Notes:
-
-- The wrapper restores only existing files.
-- The desktop entry uses `%F` because session persistence supports local files. Direct command-line options are still passed through to Okular, but only existing local document paths seed the snapshot.
-- Snapshot capture scans each PID reported by `ps -C okular -o pid=` and the PID launched by the wrapper, then de-duplicates the resulting paths.
-- Empty or failed `/proc` probes do not replace a known-good snapshot during startup or shutdown.
+See [LICENSE](./LICENSE).

@@ -1,0 +1,11 @@
+Package: okular-session
+Version: @VERSION@
+Section: utils
+Priority: optional
+Architecture: all
+Maintainer: AkiraLyu <akira.uestc@gmail.com>
+Depends: bash (>= 4), coreutils, awk, procps, okular
+Homepage: https://github.com/AkiraLyu/Okular-session
+Description: Document session restoration for Okular
+ Saves local document paths from Okular and reopens the saved documents
+ when launched without arguments.
