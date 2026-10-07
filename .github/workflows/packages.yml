@@ -67,8 +67,9 @@ jobs:
             [[ "$REF_NAME" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || exit 1
             version=${REF_NAME#v}
           fi
+          source_date_epoch=$(git -c safe.directory="$GITHUB_WORKSPACE" show -s --format=%ct HEAD)
           printf 'PACKAGE_VERSION=%s\n' "$version" >> "$GITHUB_ENV"
-          printf 'SOURCE_DATE_EPOCH=%s\n' "$(git show -s --format=%ct HEAD)" >> "$GITHUB_ENV"
+          printf 'SOURCE_DATE_EPOCH=%s\n' "$source_date_epoch" >> "$GITHUB_ENV"
       - name: Build Debian package
         if: matrix.format == 'deb'
         run: bash packaging/build.sh deb "$PACKAGE_VERSION"
@@ -84,7 +85,10 @@ jobs:
         run: apt-get install --yes --no-install-recommends ./dist/*.deb
       - name: Verify Arch package installation
         if: matrix.format == 'arch'
-        run: pacman -U --noconfirm dist/*.pkg.tar.zst
+        run: |
+          # The container image excludes documentation from package installation.
+          pacman-conf | sed '/^NoExtract[[:space:]]*=/d' > /tmp/pacman-ci.conf
+          pacman --config /tmp/pacman-ci.conf -U --noconfirm dist/*.pkg.tar.zst
       - name: Verify installed files
         run: |
           test -x /usr/bin/okular-session
