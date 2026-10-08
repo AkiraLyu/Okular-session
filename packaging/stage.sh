@@ -36,6 +36,8 @@ sed -e "s/@VERSION@/$package_version/g" \
 case "$3" in
     deb)
         install -m644 "$source_dir/packaging/debian/copyright" "$doc_dir/copyright"
+        install -Dm644 "$source_dir/packaging/debian/lintian-overrides" \
+            "$destination_dir/usr/share/lintian/overrides/okular-session"
         ;;
     arch)
         install -Dm644 "$source_dir/LICENSE" "$destination_dir/usr/share/licenses/okular-session/LICENSE"

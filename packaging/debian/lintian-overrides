@@ -1,0 +1,3 @@
+# Releases are distributed on GitHub, so Debian archive ITP bugs do not apply.
+# https://lintian.debian.org/tags/initial-upload-closes-no-bugs.html
+okular-session: initial-upload-closes-no-bugs
