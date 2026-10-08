@@ -1,0 +1,19 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: Okular Session Wrapper
+Upstream-Contact: Akira Lyu <akira.uestc@gmail.com>
+Source: https://github.com/AkiraLyu/Okular-session
+
+Files: *
+Copyright: 2026 Akira Lyu <akira.uestc@gmail.com>
+License: GPL-3
+ This program is free software: you can redistribute it and/or modify
+ it under the terms of the GNU General Public License version 3,
+ as published by the Free Software Foundation.
+ .
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ GNU General Public License for more details.
+ .
+ On Debian systems, the complete text of the GNU General Public License
+ version 3 is available in /usr/share/common-licenses/GPL-3.

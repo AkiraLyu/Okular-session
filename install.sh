@@ -12,9 +12,9 @@ fail() {
 }
 
 usage() {
-    printf 'Usage: bash install.sh --package <deb|arch> [--version vX.Y.Z] [--yes]\n'
+    printf 'Usage: bash install.sh --package <deb|arch> [--version vX.Y.Z-R] [--yes]\n'
     printf '  --package deb|arch  Select the package format (required).\n'
-    printf '  --version vX.Y.Z    Install a specific release (default: latest).\n'
+    printf '  --version vX.Y.Z-R  Install a specific package revision (default: latest).\n'
     printf '  --yes              Accept package manager confirmation prompts.\n'
     printf '  -h, --help         Show this help.\n'
 }
@@ -45,7 +45,7 @@ case "$format" in
 esac
 [[ $(uname -s) == Linux ]] || fail 'Only Linux is supported.'
 
-for dependency in curl sha256sum awk mktemp "$package_manager"; do
+for dependency in curl sha256sum mktemp "$package_manager"; do
     command -v "$dependency" >/dev/null 2>&1 || fail "Required command not found: $dependency"
 done
 
@@ -62,28 +62,39 @@ if [[ -z "$version" ]]; then
     [[ "$latest_url" == "$RELEASE_URL/tag/"* ]] || fail 'No published release was found.'
     version=${latest_url#"$RELEASE_URL/tag/"}
 fi
-[[ "$version" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] \
-    || fail 'Release tags must use vX.Y.Z, for example v1.0.0.'
-
-case "$format" in
-    deb) package_name="okular-session_${version#v}_all.deb" ;;
-    arch) package_name="okular-session-${version#v}-1-any.pkg.tar.zst" ;;
-esac
+[[ "$version" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-[1-9][0-9]*$ ]] \
+    || fail 'Release tags must use vX.Y.Z-R, for example v1.0.0-2.'
 
 download_dir=$(mktemp -d)
 trap 'rm -rf -- "$download_dir"' EXIT
 download_url="$RELEASE_URL/download/$version"
+curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' \
+    --output "$download_dir/SHA256SUMS" "$download_url/SHA256SUMS" \
+    || fail "Could not download SHA256SUMS from release $version."
+package_name=''
+while read -r checksum candidate extra; do
+    case "$format:$candidate" in
+        deb:okular-session_*_all.deb)
+            candidate_version=${candidate#okular-session_}
+            candidate_version=${candidate_version%_all.deb}
+            ;;
+        arch:okular-session-*-any.pkg.tar.zst)
+            candidate_version=${candidate#okular-session-}
+            candidate_version=${candidate_version%-any.pkg.tar.zst}
+            ;;
+        *) continue ;;
+    esac
+    [[ "$candidate_version" == "${version#v}" ]] || continue
+    [[ "$checksum" =~ ^[[:xdigit:]]{64}$ && -z "$extra" ]] || fail 'Invalid package checksum entry.'
+    [[ -z "$package_name" ]] || fail 'The release contains multiple matching packages.'
+    package_name=$candidate
+    printf '%s  %s\n' "$checksum" "$package_name" > "$download_dir/package.sha256"
+done < "$download_dir/SHA256SUMS"
+[[ -n "$package_name" ]] || fail 'The release contains no package for the requested format and version.'
 printf 'Downloading %s...\n' "$package_name"
-for filename in "$package_name" SHA256SUMS; do
-    curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' \
-        --output "$download_dir/$filename" "$download_url/$filename" \
-        || fail "Could not download $filename from release $version."
-done
-
-awk -v package="$package_name" '$2 == package { print }' "$download_dir/SHA256SUMS" \
-    > "$download_dir/package.sha256"
-[[ $(awk 'END { print NR }' "$download_dir/package.sha256") -eq 1 ]] \
-    || fail 'The release must contain exactly one checksum for the selected package.'
+curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' \
+    --output "$download_dir/$package_name" "$download_url/$package_name" \
+    || fail "Could not download $package_name from release $version."
 (
     cd -- "$download_dir"
     sha256sum --check --strict package.sha256

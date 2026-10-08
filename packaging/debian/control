@@ -3,8 +3,8 @@ Version: @VERSION@
 Section: utils
 Priority: optional
 Architecture: all
-Maintainer: AkiraLyu <akira.uestc@gmail.com>
-Depends: bash (>= 4), coreutils, awk, procps, okular
+Maintainer: Akira Lyu <akira.uestc@gmail.com>
+Depends: bash (>= 4.4), procps, okular
 Homepage: https://github.com/AkiraLyu/Okular-session
 Description: Document session restoration for Okular
  Saves local document paths from Okular and reopens the saved documents

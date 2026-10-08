@@ -1,0 +1,20 @@
+# Maintainer: Akira Lyu <akira.uestc@gmail.com>
+pkgname=okular-session
+pkgver=@UPSTREAM_VERSION@
+pkgrel=@REVISION@
+pkgdesc='Save and restore local document sessions in Okular'
+arch=('any')
+url='https://github.com/AkiraLyu/Okular-session'
+license=('GPL-3.0-only')
+depends=('bash' 'coreutils' 'gawk' 'procps-ng' 'okular')
+makedepends=('pandoc-cli')
+conflicts=('okular-session-git')
+options=('!strip' '!debug')
+source=("$url/releases/download/v@VERSION@/okular-session-@VERSION@.tar.gz")
+sha256sums=('@SOURCE_SHA256@')
+export SOURCE_DATE_EPOCH=@SOURCE_DATE_EPOCH@
+
+package() {
+    bash "$srcdir/okular-session-@VERSION@/packaging/stage.sh" \
+        "$srcdir/okular-session-@VERSION@" "$pkgdir" arch "$pkgver-$pkgrel"
+}

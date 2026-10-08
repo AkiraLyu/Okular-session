@@ -24,12 +24,15 @@ jobs:
       - name: Install validation tools
         run: |
           sudo apt-get update
-          sudo apt-get install --yes shellcheck desktop-file-utils
+          sudo apt-get install --yes shellcheck desktop-file-utils python3
       - name: Validate scripts and desktop launcher
         run: |
-          bash -n okular-session.sh install.sh packaging/build.sh packaging/stage.sh packaging/arch/PKGBUILD
-          shellcheck okular-session.sh install.sh packaging/build.sh packaging/stage.sh
+          for script in okular-session.sh install.sh packaging/*.sh packaging/arch/PKGBUILD.in; do
+            bash -n "$script"
+          done
+          shellcheck -x okular-session.sh install.sh packaging/*.sh
           desktop-file-validate okular-session.desktop
+          python3 -B -m unittest discover -s tests -v
 
   build:
     needs: validate
@@ -50,10 +53,10 @@ jobs:
         if: matrix.format == 'deb'
         run: |
           apt-get update
-          apt-get install --yes --no-install-recommends git ca-certificates dpkg-dev desktop-file-utils
+          apt-get install --yes --no-install-recommends git ca-certificates dpkg-dev desktop-file-utils pandoc lintian
       - name: Install Arch build tools
         if: matrix.format == 'arch'
-        run: pacman -Syu --noconfirm --needed git desktop-file-utils
+        run: pacman -Syu --noconfirm --needed git desktop-file-utils pandoc-cli namcap
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -62,44 +65,19 @@ jobs:
           REF_TYPE: ${{ github.ref_type }}
           REF_NAME: ${{ github.ref_name }}
         run: |
-          version="0.0.0+git${GITHUB_SHA:0:7}"
+          version="0.0.0+git${GITHUB_SHA:0:7}-1"
           if [[ "$REF_TYPE" == tag ]]; then
-            [[ "$REF_NAME" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || exit 1
+            [[ "$REF_NAME" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-[1-9][0-9]*$ ]] || exit 1
             version=${REF_NAME#v}
           fi
           source_date_epoch=$(git -c safe.directory="$GITHUB_WORKSPACE" show -s --format=%ct HEAD)
           printf 'PACKAGE_VERSION=%s\n' "$version" >> "$GITHUB_ENV"
           printf 'SOURCE_DATE_EPOCH=%s\n' "$source_date_epoch" >> "$GITHUB_ENV"
-      - name: Build Debian package
-        if: matrix.format == 'deb'
-        run: bash packaging/build.sh deb "$PACKAGE_VERSION"
-      - name: Build Arch package as an unprivileged user
-        if: matrix.format == 'arch'
-        run: |
-          useradd --create-home builder
-          chown -R builder:builder "$GITHUB_WORKSPACE"
-          runuser -u builder -- env PACKAGE_VERSION="$PACKAGE_VERSION" SOURCE_DATE_EPOCH="$SOURCE_DATE_EPOCH" \
-            bash packaging/build.sh arch "$PACKAGE_VERSION"
-      - name: Verify Debian package installation
-        if: matrix.format == 'deb'
-        run: |
-          # The container image excludes documentation from package installation.
-          apt-get install --yes --no-install-recommends \
-            -o 'Dpkg::Options::=--path-include=/usr/share/doc/okular-session/*' ./dist/*.deb
-      - name: Verify Arch package installation
-        if: matrix.format == 'arch'
-        run: |
-          # The container image excludes documentation from package installation.
-          pacman-conf | sed '/^NoExtract[[:space:]]*=/d' > /tmp/pacman-ci.conf
-          pacman --config /tmp/pacman-ci.conf -U --noconfirm dist/*.pkg.tar.zst
-      - name: Verify installed files
-        run: |
-          test -x /usr/bin/okular-session
-          cmp okular-session.sh /usr/bin/okular-session
-          cmp okular-session.desktop /usr/share/applications/okular-session.desktop
-          cmp README.md /usr/share/doc/okular-session/README.md
-          bash -n /usr/bin/okular-session
-          desktop-file-validate /usr/share/applications/okular-session.desktop
+      - name: Build and verify packages
+        env:
+          PACKAGE_FORMAT: ${{ matrix.format }}
+          OKULAR_SESSION_TEST_CONTAINER: '1'
+        run: bash packaging/check.sh "$PACKAGE_FORMAT" "$PACKAGE_VERSION" "$GITHUB_WORKSPACE/dist"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: package-${{ matrix.format }}
@@ -109,6 +87,9 @@ jobs:
   release:
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     needs: build
+    concurrency:
+      group: release-${{ github.ref }}
+      cancel-in-progress: false
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -122,18 +103,10 @@ jobs:
           path: dist
           merge-multiple: true
       - name: Prepare release assets
-        run: |
-          cp install.sh dist/install.sh
-          cd dist
-          sha256sum -- *.deb *.pkg.tar.zst install.sh > SHA256SUMS
+        run: cp install.sh dist/install.sh
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ github.ref_name }}
-        run: |
-          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            gh release upload "$RELEASE_TAG" dist/* --clobber
-          else
-            gh release create "$RELEASE_TAG" dist/* --verify-tag --generate-notes --title "$RELEASE_TAG"
-          fi
+        run: bash packaging/publish.sh "$RELEASE_TAG" dist

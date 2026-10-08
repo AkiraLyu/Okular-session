@@ -1,0 +1,10 @@
+okular-session (@VERSION@) unstable; urgency=medium
+
+  * Add independent package revision numbers and checksum-based asset selection.
+  * Include a manual generated from README and Debian copyright metadata.
+  * Generate a standalone Arch recipe with verified source checksums.
+  * Use stable build paths and explicit packager metadata.
+  * Check package metadata, reproducibility, installation, upgrade, and removal.
+  * Publish complete draft releases and refuse to overwrite existing releases.
+
+ -- Akira Lyu <akira.uestc@gmail.com>  @DATE@
