@@ -1,6 +1,6 @@
 # Okular Session Wrapper
 
-`okular-session` saves local document paths from Okular and restores them when launched without arguments. It requires Linux, Bash 4 or later, and Okular.
+`okular-session` saves local document paths from Okular and restores them when launched without arguments. It requires Linux, Bash 4.4 or later, and Okular.
 
 > [!WARNING]
 > This project was generated with AI assistance.
@@ -19,19 +19,19 @@ For Arch Linux:
 curl -fsSL https://github.com/AkiraLyu/Okular-session/releases/latest/download/install.sh | bash -s -- --package arch --yes
 ```
 
-The installer downloads the latest release, verifies its SHA-256 checksum, and installs the package and dependencies. It requires `curl`, `awk`, coreutils, and the selected package format's package manager. Run as a regular user with `sudo` available, or as root.
+The installer selects the package from the release checksum manifest, verifies its SHA-256 checksum, and installs it with dependencies. It requires `curl`, coreutils, and the selected package format's package manager. Run as a regular user with `sudo` available, or as root.
 
 | Parameter | Purpose |
 | --- | --- |
 | `--package deb\|arch` | Select the package format. Required. |
-| `--version vX.Y.Z` | Install a specific release instead of the latest. |
+| `--version vX.Y.Z-R` | Install a specific upstream version and package revision instead of the latest. |
 | `--yes` | Accept package manager confirmation prompts. Use with the piped commands above. |
 | `--help` | Show usage. |
 
 For example, to install a specific Debian package release:
 
 ```bash
-curl -fsSL https://github.com/AkiraLyu/Okular-session/releases/latest/download/install.sh | bash -s -- --package deb --version v1.0.0 --yes
+curl -fsSL https://github.com/AkiraLyu/Okular-session/releases/latest/download/install.sh | bash -s -- --package deb --version v1.0.0-2 --yes
 ```
 
 ## Usage
@@ -73,6 +73,40 @@ OKULAR_SESSION_POLL_INTERVAL=2
 - Restoration includes only existing local files with tracked extensions.
 
 Capture depends on visible file descriptors. Closed documents may remain in the saved list, and documents may be missed. Remote URLs, page positions, and window layout are not saved.
+
+## Packaging
+
+Package versions use `X.Y.Z-R`: the upstream version and a positive package
+revision. Increase `R` for packaging-only changes; restart at `1` for each new
+upstream version. Release tags use `vX.Y.Z-R`.
+
+Build as a regular user. Debian builds require Git, `dpkg-deb`, and Pandoc; Arch builds
+require `base-devel`, Git, and `pandoc-cli`.
+
+```bash
+bash packaging/build.sh deb 1.0.0-2 dist/deb
+bash packaging/build.sh arch 1.0.0-2 dist/arch
+```
+
+The timestamp defaults to the checked-out commit. Set it explicitly when building
+outside Git. The Arch output includes a source archive and a standalone
+`PKGBUILD` with its checksum. Keep both files together and run `makepkg -s` to
+rebuild; published recipes can also download the source archive from the release.
+The installed manual, `man okular-session`, is generated from this README.
+
+Arch metadata records absolute build paths. Local builds use `.build/arch`;
+`OKULAR_SESSION_BUILD_ROOT` overrides the root. CI uses `/build/okular-session`
+in disposable containers. Reproducible builds require the same source timestamp,
+paths, tool versions, and makepkg configuration. CI checks package metadata,
+repeat-build checksums, installation, session restoration, revision upgrades,
+and removal.
+
+To release, update `packaging/changelog.in`, commit, and push a new `vX.Y.Z-R`
+tag. The workflow uploads all assets to a draft before publishing. Existing
+releases, including incomplete drafts, cause publication to fail. Inspect and
+remove an incomplete draft before retrying. Use a new revision for an already
+published version. GitHub immutable releases can additionally protect tags and
+assets from changes outside the workflow.
 
 ## License
 
