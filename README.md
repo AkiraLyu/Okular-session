@@ -1,9 +1,24 @@
 # Okular Session Wrapper
 
-`okular-session` saves local document paths from Okular and restores them when launched without arguments. It requires Linux, Bash 4.4 or later, and Okular.
+`okular-session` saves local document paths from Okular and restores them when launched without arguments. It requires Linux, Bash 4.4 or later, Okular, `ps`, and `awk`.
 
 > [!WARNING]
 > This project was generated with AI assistance.
+
+## Quick Start
+
+Install the wrapper script and desktop entry directly from a clone:
+
+```bash
+git clone https://github.com/AkiraLyu/Okular-session.git
+cd Okular-session
+sudo install -Dm755 okular-session.sh /usr/local/bin/okular-session
+sudo install -Dm644 okular-session.desktop /usr/local/share/applications/okular-session.desktop
+```
+
+Application menus show the entry as **Okular Session**. The entry launches `okular-session` from `PATH`.
+
+For a user-local installation, run the same commands without `sudo` and use `$HOME/.local/bin/okular-session` and `$HOME/.local/share/applications/okular-session.desktop` as destinations. The desktop session must include `$HOME/.local/bin` in `PATH`.
 
 ## Installation
 
@@ -76,37 +91,7 @@ Capture depends on visible file descriptors. Closed documents may remain in the 
 
 ## Packaging
 
-Package versions use `X.Y.Z-R`: the upstream version and a positive package
-revision. Increase `R` for packaging-only changes; restart at `1` for each new
-upstream version. Release tags use `vX.Y.Z-R`.
-
-Build as a regular user. Debian builds require Git, `dpkg-deb`, and Pandoc; Arch builds
-require `base-devel`, Git, and `pandoc-cli`.
-
-```bash
-bash packaging/build.sh deb 1.0.0-2 dist/deb
-bash packaging/build.sh arch 1.0.0-2 dist/arch
-```
-
-The timestamp defaults to the checked-out commit. Set it explicitly when building
-outside Git. The Arch output includes a source archive and a standalone
-`PKGBUILD` with its checksum. Keep both files together and run `makepkg -s` to
-rebuild; published recipes can also download the source archive from the release.
-The installed manual, `man okular-session`, is generated from this README.
-
-Arch metadata records absolute build paths. Local builds use `.build/arch`;
-`OKULAR_SESSION_BUILD_ROOT` overrides the root. CI uses `/build/okular-session`
-in disposable containers. Reproducible builds require the same source timestamp,
-paths, tool versions, and makepkg configuration. CI checks package metadata,
-repeat-build checksums, installation, session restoration, revision upgrades,
-and removal.
-
-To release, update `packaging/changelog.in`, commit, and push a new `vX.Y.Z-R`
-tag. The workflow uploads all assets to a draft before publishing. Existing
-releases, including incomplete drafts, cause publication to fail. Inspect and
-remove an incomplete draft before retrying. Use a new revision for an already
-published version. GitHub immutable releases can additionally protect tags and
-assets from changes outside the workflow.
+See [packaging/packaging.md](packaging/packaging.md) in the source repository for build, verification, and release instructions.
 
 ## License
 
