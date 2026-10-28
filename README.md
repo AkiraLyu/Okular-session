@@ -20,6 +20,10 @@ Application menus show the entry as **Okular Session**. The entry launches `okul
 
 For a user-local installation, run the same commands without `sudo` and use `$HOME/.local/bin/okular-session` and `$HOME/.local/share/applications/okular-session.desktop` as destinations. The desktop session must include `$HOME/.local/bin` in `PATH`.
 
+## Okular Configuration
+
+Enable **Settings → Configure Okular… → General → Program Features → Open new files in tabs** to open documents as tabs and restore several tabs at once.
+
 ## Installation
 
 Choose the package format explicitly. For Debian/Ubuntu:
